@@ -1,0 +1,84 @@
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+
+/* Um visual só, igual a um terminal escuro, em qualquer sistema. */
+:root {
+  color-scheme: dark;
+  --page: #0B0F14;
+  --t-bg: #10151C;
+  --t-bar: #1A212B;
+  --fg: #D4DBE3;
+  --bright: #F1F4F7;
+  --dim: #6D7A8B;
+  --cyan: #74C7EC;
+  --green: #7FD69B;
+  --red: #F2767B;
+  --yellow: #E8C468;
+  --key: #2A3340;
+  --l0: #2A323D;
+  --l1: #2F8F5B;
+  --l2: #7FD69B;
+  --l3: #E8C468;
+  --l4: #F2767B;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--page); color: var(--fg);
+  font: 14px/1.6 var(--mono); font-variant-numeric: tabular-nums;
+  padding: 32px 16px;
+}
+.term {
+  max-width: 900px; margin: 0 auto; background: var(--t-bg); border-radius: 10px;
+  overflow: hidden; box-shadow: 0 16px 48px -24px rgba(0, 0, 0, .8);
+}
+.bar { background: var(--t-bar); display: flex; align-items: center; gap: 7px; padding: 9px 14px; }
+.bar i { width: 11px; height: 11px; border-radius: 50%; background: #3A4452; display: block; }
+.bar span { margin-left: 10px; font-size: 12px; color: var(--dim); }
+.screen { padding: 20px 22px 26px; overflow-x: auto; min-height: 420px; }
+.ln { white-space: pre; min-height: 1.6em; }
+
+.d { color: var(--dim); } .c { color: var(--cyan); } .g { color: var(--green); }
+.r { color: var(--red); } .y { color: var(--yellow); } .b { font-weight: 600; color: var(--bright); }
+.l0 { color: var(--l0); } .l1 { color: var(--l1); } .l2 { color: var(--l2); }
+.l3 { color: var(--l3); } .l4 { color: var(--l4); }
+
+.ico { width: 1em; height: 1em; vertical-align: -0.14em; }
+
+button.key, button.opt {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+}
+.key .k, .k {
+  background: var(--key); color: var(--bright); padding: 0 .45em; border-radius: 3px;
+}
+button.opt:hover .lbl, button.key:hover .lbl, button.opt:focus-visible .lbl, button.key:focus-visible .lbl {
+  color: var(--bright); text-decoration: underline; text-underline-offset: 3px;
+}
+button:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+button.row { display: block; width: 100%; }
+button.row:hover, button.row:focus-visible { background: #18202A; }
+
+input.tin, select.tin {
+  font: inherit; color: var(--bright); background: transparent; border: 0;
+  border-bottom: 1px solid var(--key); padding: 0 2px; outline: none; width: 12ch;
+}
+input.tin:focus, select.tin:focus { border-bottom-color: var(--cyan); }
+input.answer { width: 6ch; font-weight: 600; caret-color: var(--bright); }
+select.tin option { background: var(--t-bg); }
+
+.cell { letter-spacing: -0.05em; }
+@media (max-width: 520px) {
+  body { padding: 12px 8px; font-size: 12.5px; }
+  .screen { padding: 14px 12px 20px; }
+}

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tabuada"
+version = "0.1.0"
+description = "CLI para treinar tabuada até 12×12, com relatório e histórico"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Weslley Cabral" }]
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Education",
+]
+
+[project.urls]
+Homepage = "https://github.com/weslleycabral/tabuada"
+
+[project.scripts]
+tabuada = "tabuada.cli:main"
+
+[tool.setuptools]
+packages = ["tabuada"]
+
+[tool.setuptools.package-data]
+tabuada = ["web/*", "web/fonts/*"]
