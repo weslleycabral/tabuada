@@ -21,6 +21,8 @@ Cada comando tem a própria ajuda, por exemplo: tabuada treinar --help
 HELP_SESSION = """durante a sessão:
   q   sai e mostra o relatório       p       pula a pergunta
   a   mostra ou oculta os atalhos    Ctrl+C  igual a q
+  as teclas agem sem Enter, e a resposta vai sozinha quando está certa
+  ou já tem o máximo de dígitos da conta (2 em 9×9); Enter manda antes
 
 exemplos:
   tabuada treinar -n 30 --tabelas 7,8

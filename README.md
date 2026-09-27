@@ -160,7 +160,12 @@ A escolha fica salva: a opção **2** do menu (ou `tabuada treinar`) repete a ú
 
 ### 3. Responda
 
-Digite o resultado e Enter. O cabeçalho mostra em que pergunta você está, acertos, erros, pulos e o tempo total. Os atalhos ficam na barra de baixo.
+Digite o resultado. **Não precisa apertar Enter** quando:
+
+- a resposta é a certa (`81` em 9 × 9, `9` em 3 × 3), ou
+- ela já tem o máximo de dígitos que a conta pode dar: 2 em contas de um dígito por um dígito (9 × 9), 3 em 9 × 12, 4 em 12 × 12. Em 9 × 9, digitar `75` já confere a resposta (errada) e passa para a próxima.
+
+Para uma resposta errada mais curta que isso, aperte Enter. O cabeçalho mostra em que pergunta você está, acertos, erros, pulos e o tempo total. Os atalhos ficam na barra de baixo.
 
 ![Pergunta com a barra de atalhos](docs/img/pergunta.png)
 
@@ -177,6 +182,8 @@ Ao terminar (ou ao sair antes com `q`), aparece o relatório. Veja a seção [Re
 
 ## Durante a sessão
 
+Os atalhos agem na hora, sem Enter:
+
 | Tecla | O que faz |
 |---|---|
 | `q` | sai e mostra o relatório do que foi respondido até ali |
@@ -188,7 +195,7 @@ Com a barra escondida, fica só a dica `[a] atalhos`. A preferência vale para a
 
 ![Pergunta sem a barra de atalhos](docs/img/pergunta-sem-atalhos.png)
 
-Texto que não seja número nem atalho não conta como erro: ele só pede de novo.
+Outras letras são ignoradas e não contam como erro. Backspace apaga o último dígito.
 
 ## Relatório
 

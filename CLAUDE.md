@@ -7,6 +7,7 @@ CLI em Python para treinar tabuada até 12×12, com relatório por sessão, hist
 - **Só biblioteca padrão.** Nada de dependências externas (nem colorama, rich etc.). Python ≥ 3.8; o Mac do dono usa 3.9, então sem `X | None`, `match` etc.
 - **Tudo tem dois caminhos:** menu interativo (`tabuada` sem argumentos) e flags. Funcionalidade nova entra nos dois, e o menu/assistente mostra o comando equivalente para ensinar as flags.
 - **Texto da interface em português do Brasil**, números com vírgula decimal (`5,8 s`).
+- **Resposta sem Enter:** na sessão, a resposta vai sozinha quando é a certa ou já tem o máximo de dígitos da conta (`drill.answer_complete`: dígitos de a + dígitos de b); Enter manda respostas mais curtas. `q`, `p` e `a` agem na hora. No terminal isso usa leitura tecla a tecla (`term.keys`/`read_key`: termios ou msvcrt); sem TTY, cai no `input()` com Enter.
 - **O tempo de cada resposta é sempre gravado**, em qualquer modo e sem limite. O tempo gasto apertando `a` (mostrar/ocultar atalhos) não conta.
 - **Relatório progressivo:** ao fim da sessão aparece só o resumo e a recomendação; os grupos (`t` tempo, `e` erros, `d` por tabela, `c` comparação, `x` tudo) abrem por tecla. Não voltar a despejar tudo de uma vez.
 - **A UI do mockup é a referência visual** (paleta em `term.PALETTE` e `web/app.css`). No terminal a fonte é a do usuário; o modo web traz a fonte JetBrains Mono e ícones SVG no pacote, sem requisições externas.

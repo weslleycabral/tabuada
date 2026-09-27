@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from tabuada import render, report, session, storage, term
-from tabuada.drill import Config, Drill, format_tabelas, parse_answer, parse_tabelas
+from tabuada.drill import Config, Drill, answer_complete, format_tabelas, max_digits, parse_answer, parse_tabelas
 
 
 def make_session(answers, tabelas=(6, 7, 8, 9), started="2026-09-27T14:03:00", sid=1):
@@ -57,6 +57,18 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(parse_answer("p"), ("skip", None))
         self.assertEqual(parse_answer("a"), ("toggle", None))
         self.assertEqual(parse_answer("4 2"), ("invalid", None))
+
+    def test_answer_complete(self):
+        self.assertEqual((max_digits(9, 9), max_digits(12, 12), max_digits(123, 456789)), (2, 4, 9))
+        self.assertTrue(answer_complete("81", 9, 9))    # certa
+        self.assertTrue(answer_complete("75", 9, 9))    # errada, mas já tem 2 dígitos
+        self.assertFalse(answer_complete("8", 9, 9))
+        self.assertTrue(answer_complete("9", 3, 3))     # certa com menos dígitos que o máximo
+        self.assertFalse(answer_complete("1", 3, 3))
+        self.assertFalse(answer_complete("14", 12, 12))
+        self.assertTrue(answer_complete("144", 12, 12))
+        self.assertFalse(answer_complete("", 2, 2))
+        self.assertFalse(answer_complete("p", 2, 2))
 
     def test_command(self):
         cfg = Config(tabelas=[6, 7, 8, 9], n=20, foco=True)

@@ -216,6 +216,19 @@ def now():
     return datetime.now()
 
 
+def max_digits(a, b):
+    """Dígitos do maior produto possível com fatores desse tamanho: 9×9 -> 2, 12×12 -> 4."""
+    return len(str(abs(a))) + len(str(abs(b)))
+
+
+def answer_complete(typed, a, b):
+    """A resposta vai sem Enter quando é a certa ou já tem o máximo de dígitos da conta."""
+    return typed.isdigit() and (int(typed) == a * b or len(typed) >= max_digits(a, b))
+
+
+INSTANT_KEYS = {"q": "quit", "p": "skip", "a": "toggle"}  # atalhos que agem sem Enter
+
+
 def parse_answer(text):
     """Entrada do usuário -> ('num', n) | ('quit'|'skip'|'toggle', None) | ('invalid', None)."""
     t = text.strip().lower()

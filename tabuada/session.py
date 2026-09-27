@@ -4,9 +4,9 @@ import sys
 import time
 
 from . import render, report, storage
-from .drill import Drill, now, parse_answer
+from .drill import INSTANT_KEYS, Drill, answer_complete, now, parse_answer
 from .render import fact, secs
-from .term import T, clear, hr, in_screen, key, paint, screen, sym
+from .term import T, clear, hr, in_screen, key, keys, paint, read_key, screen, sym
 
 
 def _clock(seconds):
@@ -39,9 +39,21 @@ def _bar(show):
     return ["", "  " + paint("[a] atalhos", "d")]
 
 
-def _ask(prompt, show):
-    """Mostra a pergunta com a barra de atalhos abaixo e lê a resposta."""
+def _ask(prompt, show, a, b, typed=""):
+    """Mostra a pergunta com a barra de atalhos abaixo e lê a resposta.
+
+    Devolve (tipo, valor) como parse_answer. Em "toggle", valor é o que já
+    tinha sido digitado, para continuar de onde parou."""
     bar = _bar(show)
+    if T.keys:
+        sys.stdout.write("\n" + "\n".join(bar) + "\x1b[%dA\r" % len(bar) + prompt + typed)
+        sys.stdout.flush()
+        try:
+            with keys():
+                return _read_answer(a, b, typed)
+        finally:
+            sys.stdout.write("\n\x1b[J")  # como o input(): desce uma linha e apaga a barra
+            sys.stdout.flush()
     if T.ansi:
         sys.stdout.write("\n" + "\n".join(bar) + "\x1b[%dA\r" % len(bar))
         sys.stdout.flush()
@@ -52,7 +64,31 @@ def _ask(prompt, show):
             sys.stdout.flush()
     for line in bar[1:]:
         print(line)
-    return input(prompt)
+    return parse_answer(input(prompt))
+
+
+def _read_answer(a, b, typed):
+    """Tecla a tecla: a resposta vai sozinha quando está certa ou tem o máximo
+    de dígitos da conta; q, p e a agem na hora; Enter manda respostas mais curtas."""
+    while True:
+        k = read_key()
+        if k == "enter":
+            if typed:
+                return "num", int(typed)
+        elif k == "backspace":
+            if typed:
+                typed = typed[:-1]
+                sys.stdout.write("\b \b")
+                sys.stdout.flush()
+        elif len(k) == 1 and k in "0123456789":
+            typed += k
+            sys.stdout.write(k)
+            sys.stdout.flush()
+            if answer_complete(typed, a, b):
+                return "num", int(typed)
+        elif k.lower() in INSTANT_KEYS:
+            kind = INSTANT_KEYS[k.lower()]
+            return kind, (typed if kind == "toggle" else None)
 
 
 def play(config, save=True):
@@ -91,11 +127,16 @@ def _play(config, save):
             print()
             prompt = "        %s " % paint("%s =" % fact(a, b), "b")
             counted = 0.0
+            typed = ""
             while True:
                 t0 = time.monotonic()
-                kind, value = parse_answer(_ask(prompt, show))
+                kind, value = _ask(prompt, show, a, b, typed)
                 if kind == "toggle":
-                    # o tempo gasto para mostrar/ocultar atalhos não conta
+                    # o tempo gasto para mostrar/ocultar atalhos não conta; tecla a
+                    # tecla, o "a" é instantâneo e o tempo pensando até ali conta
+                    if T.keys:
+                        counted += time.monotonic() - t0
+                        typed = value
                     show = not show
                     storage.update_config(show_shortcuts=show)
                     if T.ansi:  # redesenha a mesma pergunta no lugar

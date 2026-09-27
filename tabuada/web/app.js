@@ -235,6 +235,12 @@ function feedbackLines(f) {
     ln("        ", sp("d", "Essa conta volta daqui a pouco."))];
 }
 
+// Mesma regra de drill.answer_complete: vai sem Enter quando é a certa ou tem o máximo de dígitos.
+const maxDigits = (a, b) => String(Math.abs(a)).length + String(Math.abs(b)).length;
+const answerComplete = (typed, a, b) =>
+  /^\d+$/.test(typed) && (Number(typed) === a * b || typed.length >= maxDigits(a, b));
+const INSTANT_KEYS = { q: "quit", p: "skip", a: "toggle" };
+
 function session(ctx, invalid = false) {
   const st = ctx.state;
   const receivedAt = performance.now();
@@ -288,7 +294,13 @@ function session(ctx, invalid = false) {
   const input = document.getElementById("ans");
   input.focus();
   input.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
     if (e.key === "Enter") { e.preventDefault(); submit(input.value); }
+    else if (INSTANT_KEYS[k]) { e.preventDefault(); k === "a" ? toggle() : submit(k); }
+  });
+  input.addEventListener("input", () => {
+    if (answerComplete(input.value.trim(), a, b)) submit(input.value);
   });
   const tick = () => {
     const el = document.getElementById("clock");

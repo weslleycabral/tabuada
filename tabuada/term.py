@@ -10,6 +10,7 @@ class _State:
     color = False      # cores ligadas
     truecolor = False  # cores 24 bits, iguais ao mockup
     unicode = True     # símbolos ✓ ✗ ─ █; se False usa ASCII
+    keys = False       # dá para ler tecla a tecla, sem esperar Enter
 
 
 T = _State()
@@ -109,6 +110,7 @@ def setup(ascii=False, no_color=False):
         os.environ.get("COLORTERM", "").lower() in ("truecolor", "24bit")
         or "WT_SESSION" in os.environ
     )
+    T.keys = vt and sys.stdin.isatty()
     T.unicode = (
         not ascii
         and "TABUADA_ASCII" not in os.environ
@@ -173,6 +175,57 @@ def screen():
         if use:
             sys.stdout.write("\x1b[?1049l")
             sys.stdout.flush()
+
+
+_pending = []
+
+
+@contextlib.contextmanager
+def keys():
+    """Lê tecla a tecla, sem eco e sem esperar Enter. Ctrl+C continua funcionando."""
+    if os.name == "nt":
+        yield
+        return
+    import termios
+    import tty
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        yield
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        del _pending[:]
+
+
+def read_key():
+    """Uma tecla: o caractere, "enter", "backspace" ou "" (setas e outras especiais)."""
+    if os.name == "nt":
+        import msvcrt
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):
+            msvcrt.getwch()
+            return ""
+        if ch == "\x03":
+            raise KeyboardInterrupt
+        if ch == "\x1a":
+            raise EOFError
+    else:
+        if not _pending:
+            data = os.read(sys.stdin.fileno(), 64).decode("utf-8", "ignore")
+            if not data:
+                raise EOFError
+            if data.startswith("\x1b"):  # sequência de seta, F1 etc.: ignora inteira
+                return ""
+            _pending.extend(data)
+        ch = _pending.pop(0)
+        if ch == "\x04":
+            raise EOFError
+    if ch in ("\r", "\n"):
+        return "enter"
+    if ch in ("\x7f", "\x08"):
+        return "backspace"
+    return ch
 
 
 def out(*lines):
