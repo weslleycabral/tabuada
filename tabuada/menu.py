@@ -5,7 +5,7 @@ from datetime import date, datetime
 from . import render, report, storage
 from .drill import Config, parse_tabelas, format_tabelas
 from .session import show_report, train
-from .term import hr, paint, sym
+from .term import clear, hr, paint, screen, sym
 
 
 def ask(prompt, default=None, parse=lambda s: s):
@@ -50,7 +50,7 @@ def _choice(options):
 
 def wizard():
     last = Config.from_dict(storage.load_config()["last"])
-    print()
+    clear()
     print("  " + paint("Configurar treino", "b"))
     print()
     print("  Quais tabelas?  " + paint("todas %s 6,7,8 %s 2-9" % (sym("dot"), sym("dot")), "d"))
@@ -95,6 +95,7 @@ def _last_line(sessions):
 def history_screen():
     sessions = storage.load_history()
     rows = report.history_rows(sessions)
+    clear()
     print("\n".join(render.history_lines(rows, limit=10)))
     if not rows:
         input("\n  Enter para voltar ")
@@ -114,16 +115,23 @@ def history_screen():
 
 
 def _pause(lines):
+    clear()
     print("\n".join(lines))
     input("\n  Enter para voltar ao menu ")
 
 
 def main_menu():
+    with screen():
+        _menu_loop()
+    print("\n  Até a próxima!\n")
+
+
+def _menu_loop():
     while True:
         sessions = storage.load_history()
         last = Config.from_dict(storage.load_config()["last"])
         dot = sym("dot")
-        print()
+        clear()
         print("  %s %s" % (paint("TABUADA", "b"), paint("%s treino até 12%s12" % (dot, sym("times")), "d")))
         print("  " + paint(_last_line(sessions), "d"))
         print()
@@ -157,5 +165,4 @@ def main_menu():
         elif choice == "5":
             _pause(render.weak_lines(report.weak_facts(sessions)))
         else:
-            print("\n  Até a próxima!\n")
             return

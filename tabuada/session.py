@@ -6,7 +6,7 @@ import time
 from . import render, report, storage
 from .drill import Drill, now, parse_answer
 from .render import fact, secs
-from .term import T, clear, hr, key, paint, sym
+from .term import T, clear, hr, in_screen, key, paint, screen, sym
 
 
 def _clock(seconds):
@@ -57,6 +57,14 @@ def _ask(prompt, show):
 
 def play(config, save=True):
     """Roda uma sessão. Devolve (sessão, sessões anteriores) ou (None, None)."""
+    with screen():
+        session, history = _play(config, save)
+    if session is None:
+        print("\n  Nenhuma resposta, nada foi salvo.")
+    return session, history
+
+
+def _play(config, save):
     cfg_store = storage.load_config()
     show = cfg_store["show_shortcuts"]
     history = storage.load_history()
@@ -65,12 +73,20 @@ def play(config, save=True):
     t_start = time.monotonic()
     interrupted = False
 
-    print()
-    print("  %s %s" % (paint("Treino:", "b"), config.describe()))
+    title = "  %s %s" % (paint("Treino:", "b"), config.describe())
+    last_feedback = []
+    if not T.ansi:
+        print()
+        print(title)
     try:
         while not drill.done(time.monotonic() - t_start):
             a, b = drill.next_question()
-            print()
+            if T.ansi:  # tela fixa: cada pergunta substitui a anterior
+                clear()
+                print(title)
+                print("\n".join(last_feedback))
+            else:
+                print()
             print(_header(drill, time.monotonic() - t_start))
             print()
             prompt = "        %s " % paint("%s =" % fact(a, b), "b")
@@ -95,14 +111,15 @@ def play(config, save=True):
                 break
             ms = counted * 1000
             ans = drill.record(a, b, value, ms, skipped=(kind == "skip"))
-            _feedback(drill, ans)
+            last_feedback = _feedback(drill, ans)
+            if not T.ansi:
+                print("\n".join(last_feedback))
     except (KeyboardInterrupt, EOFError):
         interrupted = True
         print()
 
     duration = (time.monotonic() - t_start) * 1000
     if not drill.answers:
-        print("\n  Nenhuma resposta, nada foi salvo.")
         return None, None
     session = drill.to_session(started, duration, interrupted)
     if save:
@@ -115,19 +132,16 @@ def play(config, save=True):
 def _feedback(drill, ans):
     took = secs(ans["ms"])
     right = ans["a"] * ans["b"]
+    back = "        " + paint("Essa conta volta daqui a pouco.", "d")
     if ans["skipped"]:
-        print("        %s   %s" % (paint("Pulou. %s = %d" % (fact(ans["a"], ans["b"]), right), "d"),
-                                   paint(took, "d")))
-        print("        " + paint("Essa conta volta daqui a pouco.", "d"))
-    elif ans["ok"]:
+        return ["        %s   %s" % (paint("Pulou. %s = %d" % (fact(ans["a"], ans["b"]), right), "d"),
+                                    paint(took, "d")), back]
+    if ans["ok"]:
         if drill.is_slow(ans["ms"]):
-            print("        %s, mas demorou   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "y")))
-        else:
-            print("        %s   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "g")))
-    else:
-        print("        %s   %s" % (paint("%s %s = %d" % (sym("err"), fact(ans["a"], ans["b"]), right), "r"),
-                                   paint(took, "d")))
-        print("        " + paint("Essa conta volta daqui a pouco.", "d"))
+            return ["        %s, mas demorou   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "y"))]
+        return ["        %s   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "g"))]
+    return ["        %s   %s" % (paint("%s %s = %d" % (sym("err"), fact(ans["a"], ans["b"]), right), "r"),
+                                 paint(took, "d")), back]
 
 
 def show_report(rep, interactive=True, opened=(), saved_id=None):
@@ -140,7 +154,7 @@ def show_report(rep, interactive=True, opened=(), saved_id=None):
     first, redraw = True, True
     while True:
         if redraw:
-            if not first:
+            if not first or in_screen():
                 clear()
             lines = render.report_lines(rep, opened) + render.menu_lines(rep, opened)
             if first and saved_id:
@@ -167,6 +181,8 @@ def show_report(rep, interactive=True, opened=(), saved_id=None):
 def train(config, save=True):
     session, before = play(config, save)
     if session is None:
+        if in_screen():  # senão o menu redesenha por cima do aviso
+            input("\n  Enter para voltar ao menu ")
         return
     rep = report.build(session, before)
     show_report(rep, saved_id=session.get("id"))

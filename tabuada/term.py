@@ -1,5 +1,6 @@
 """Saída no terminal: cores, símbolos e compatibilidade entre sistemas."""
 
+import contextlib
 import os
 import sys
 
@@ -146,6 +147,32 @@ def clear():
     if T.ansi:
         sys.stdout.write("\x1b[H\x1b[2J")
         sys.stdout.flush()
+
+
+_screen_depth = 0
+
+
+def in_screen():
+    return _screen_depth > 0
+
+
+@contextlib.contextmanager
+def screen():
+    """Tela alternativa (como vim/less): cada tela substitui a anterior e,
+    ao sair, o terminal volta como estava. Aninhar não reabre."""
+    global _screen_depth
+    use = T.ansi and _screen_depth == 0 and sys.stdout.isatty()
+    if use:
+        sys.stdout.write("\x1b[?1049h\x1b[H")
+        sys.stdout.flush()
+    _screen_depth += 1
+    try:
+        yield
+    finally:
+        _screen_depth -= 1
+        if use:
+            sys.stdout.write("\x1b[?1049l")
+            sys.stdout.flush()
 
 
 def out(*lines):
