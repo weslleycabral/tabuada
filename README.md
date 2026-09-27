@@ -94,6 +94,12 @@ O histórico e as preferências ficam em `~/.tabuada/`. Para usar outra pasta, d
 python3 -m unittest discover -s tests
 ```
 
+Para usar o comando `tabuada` direto do código, sem instalar:
+
+```sh
+ln -s "$PWD/bin/tabuada" ~/.local/bin/tabuada
+```
+
 ## Licença
 
 MIT. A fonte JetBrains Mono (`tabuada/web/fonts/`) é distribuída sob a SIL Open Font License, em `tabuada/web/fonts/OFL.txt`.
