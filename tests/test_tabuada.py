@@ -147,6 +147,13 @@ class ReportTest(unittest.TestCase):
         self.assertEqual((rows[0]["a"], rows[0]["b"]), (7, 8))
         self.assertIn("erra", rows[0]["reasons"])
 
+    def test_weak_fact_only_skipped_has_no_time(self):
+        history = [make_session([ans(3, 4, skipped=True)] + [ans(2, 2)] * 5)]
+        row = next(r for r in report.weak_facts(history)["rows"] if (r["a"], r["b"]) == (3, 4))
+        self.assertIsNone(row["mean"])
+        term.T.color = False
+        self.assertIn("  —  ", "\n".join(render.weak_lines(report.weak_facts(history))))
+
     def test_render_all_groups_ascii_and_unicode(self):
         rep = report.build(self.s, [make_session([ans(2, 2)])])
         for uni in (True, False):

@@ -17,7 +17,7 @@ const BLANK = ln("");
 const HR = ln("  ", sp("d", "─".repeat(56)));
 const T = "×";
 const fact = (a, b) => `${a} ${T} ${b}`;
-const secs = (ms, w = 0) => ((ms / 1000).toFixed(1).replace(".", ",") + " s").padStart(w);
+const secs = (ms, w = 0) => (ms == null ? "—" : (ms / 1000).toFixed(1).replace(".", ",") + " s").padStart(w);
 const pct = (v) => `${Math.round(v)}%`;
 const lpad = (s, n) => String(s).padStart(n);
 const rpad = (s, n) => String(s).padEnd(n);

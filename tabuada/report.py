@@ -266,7 +266,7 @@ def weak_facts(sessions, n=10):
     med = median([ms for st in fs.values() for ms in st["ms"]])
     rows = []
     for (a, b), st in fs.items():
-        mean = _mean(st["ms"])
+        mean = _mean(st["ms"]) if st["ms"] else None  # só pulos: sem tempo medido
         err_rate = st["errors"] / st["seen"]
         reasons = []
         if st["errors"] and err_rate >= 0.15:
@@ -275,7 +275,7 @@ def weak_facts(sessions, n=10):
             reasons.append("demora")
         if not reasons:
             continue
-        score = 3 * err_rate + (mean / med if med else 0) * (0.5 if "demora" in reasons else 0.1)
+        score = 3 * err_rate + (mean / med if med and mean else 0) * (0.5 if "demora" in reasons else 0.1)
         rows.append({"a": a, "b": b, "seen": st["seen"], "errors": st["errors"],
                      "mean": mean, "reasons": reasons, "score": score})
     rows.sort(key=lambda r: -r["score"])

@@ -14,7 +14,7 @@ GROUPS = [
 
 
 def secs(ms, width=0):
-    text = ("%.1f s" % (ms / 1000)).replace(".", ",")
+    text = "—" if ms is None else ("%.1f s" % (ms / 1000)).replace(".", ",")
     return text.rjust(width)
 
 
