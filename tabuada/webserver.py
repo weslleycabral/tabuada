@@ -87,7 +87,7 @@ class App:
         return {"report": rep}
 
     def stats(self, q):
-        return report.stats(storage.load_history(), q.get("modo", "acerto"))
+        return report.stats(storage.load_history(), q.get("modo", "dominio"))
 
     def weak(self, q):
         return report.weak_facts(storage.load_history(), int(q.get("n", 10)))

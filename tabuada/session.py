@@ -179,7 +179,8 @@ def _feedback(drill, ans):
                                     paint(took, "d")), back]
     if ans["ok"]:
         if drill.is_slow(ans["ms"]):
-            return ["        %s, mas demorou   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "y"))]
+            return ["        %s, mas demorou   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "y")),
+                    "        " + paint("Essa conta volta mais tarde, para ficar automática.", "d")]
         return ["        %s   %s" % (paint(sym("ok") + " Certo", "g"), paint(took, "g"))]
     return ["        %s   %s" % (paint("%s %s = %d" % (sym("err"), fact(ans["a"], ans["b"]), right), "r"),
                                  paint(took, "d")), back]

@@ -136,7 +136,7 @@ async function menu() {
     ln("  ", sp("d", "Aperte o número ou clique na opção")),
   ];
   show(lines, "tabuada", Object.fromEntries(items.map((i) => [i[0], i[3]])), {
-    wizard, history, weak, stats: () => stats("acerto"),
+    wizard, history, weak, stats: () => stats("dominio"),
     again: () => startTraining(null),
     exit: () => show([BLANK, ln("  Até a próxima!"), BLANK,
       ln("  ", sp("d", "Pode fechar esta aba. Para encerrar o servidor, use Ctrl+C no terminal.")),
@@ -229,7 +229,8 @@ function feedbackLines(f) {
   if (f.skipped) return [ln("        ", sp("d", `Pulou. ${fact(f.a, f.b)} = ${f.right}   ${took}`)),
     ln("        ", sp("d", "Essa conta volta daqui a pouco."))];
   if (f.ok) return [ln("        ", `<span class="b">${fact(f.a, f.b)} =</span> ${f.resp}`),
-    ln("        ", icon("ok", "g"), sp("g", " Certo"), f.slow ? ", mas demorou   " + sp("y", took) : "   " + sp("g", took))];
+    ln("        ", icon("ok", "g"), sp("g", " Certo"), f.slow ? ", mas demorou   " + sp("y", took) : "   " + sp("g", took)),
+    f.slow ? ln("        ", sp("d", "Essa conta volta mais tarde, para ficar automática.")) : ""];
   return [ln("        ", `<span class="b">${fact(f.a, f.b)} =</span> ${f.resp}`),
     ln("        ", icon("err", "r"), sp("r", ` ${fact(f.a, f.b)} = ${f.right}`), "   ", sp("d", took)),
     ln("        ", sp("d", "Essa conta volta daqui a pouco."))];
@@ -368,11 +369,11 @@ function timeLines(rep) {
     else out.push(ln("    ", esc(rpad(`${fact(a.a, a.b)} = ${a.resp}`, 13)), a.ok ? icon("ok", "g") : icon("err", "r"), " ".repeat(10), took));
   }
   out.push(BLANK, ln("    ", sp("c", "Sabe, mas ainda devagar"), " ",
-    sp("d", `(acertou em mais de ${secs(t.slow_threshold)} = 2${T} a mediana)`)));
+    sp("d", `(acertou em mais de ${secs(t.slow_threshold)})`)));
   if (t.slow_ok.length) {
     const items = t.slow_ok.slice(0, 6).map((a) => `${esc(fact(a.a, a.b))}  ${sp("y", secs(a.ms))}`);
     for (let i = 0; i < items.length; i += 3) out.push(ln("    ", items.slice(i, i + 3).join("     ")));
-  } else out.push(ln("    ", sp("d", "Nenhuma. Os acertos saíram no seu ritmo normal.")));
+  } else out.push(ln("    ", sp("d", `Nenhuma. Todos os acertos saíram em até ${secs(t.slow_threshold)}.`)));
   if (t.delta_mean !== null) {
     out.push(BLANK, ln("    Tempo médio ", signed(t.delta_mean / 1000, 1, true, " s"), " ", sp("d", "em relação à sessão anterior")));
   }
@@ -488,9 +489,10 @@ async function stats(mode) {
   }
   lines.push(ln("  ", sp("b", "ESTATÍSTICAS"), " ", sp("d", `· ${st.sessions} sessões · ${st.answers} respostas · desde ${when(st.since, false).slice(0, 5)}`)), BLANK);
   const legend = mode === "tempo"
-    ? [["l1", "<3 s"], ["l2", "3–5 s"], ["l3", "5–8 s"], ["l4", ">8 s"], ["l0", "nunca vista"]]
-    : [["l1", "≥95%"], ["l2", "80–94%"], ["l3", "60–79%"], ["l4", "<60%"], ["l0", "nunca vista"]];
-  lines.push(ln("  ", sp("c", mode === "tempo" ? "Tempo médio por conta" : "Acerto por conta")));
+    ? [["l1", "até 2 s"], ["l2", "2–4 s"], ["l3", "4–8 s"], ["l4", "mais de 8 s"], ["l0", "nunca vista"]]
+    : [["l1", "até 2 s"], ["l2", "2–4 s"], ["l3", "mais de 4 s"], ["l4", "erra"], ["l0", "nunca vista"]];
+  lines.push(mode === "tempo" ? ln("  ", sp("c", "Tempo médio por conta"))
+    : ln("  ", sp("c", "Domínio por conta"), " ", sp("d", "(como você respondeu nas últimas 3 vezes)")));
   lines.push(ln("  ", legend.map(([c, t]) => `${sp(c + " cell", "██")} ${esc(t)}`).join("  ")), BLANK);
   let head = "     ";
   for (let j = 1; j <= 12; j++) head += lpad(j, 2) + " ";
@@ -507,8 +509,8 @@ async function stats(mode) {
   }
   lines.push(ln("  ", sp("c", "Constância"), `     ${st.streak} ${st.streak === 1 ? "dia seguido" : "dias seguidos"} `, sp("d", `· recorde ${st.streak_record}`)));
   lines.push(ln("  ", sp("c", "Tempo total"), `    ${durationText(st.total_ms)} treinando`));
-  const other = mode === "tempo" ? "acerto" : "tempo";
-  show(lines.concat(backLines([ln("    ", btn("m", `Mostrar a grade por ${other === "tempo" ? "tempo médio" : "acerto"}`, "mode"))])),
+  const other = mode === "tempo" ? "dominio" : "tempo";
+  show(lines.concat(backLines([ln("    ", btn("m", `Mostrar a grade por ${other === "tempo" ? "tempo médio" : "domínio"}`, "mode"))])),
     "tabuada stats", { enter: "menu", m: "mode" }, { menu, mode: () => stats(other) });
 }
 
@@ -516,22 +518,27 @@ async function stats(mode) {
 
 async function weak() {
   const wk = await api("/api/weak?n=10");
-  const lines = [BLANK, ln("  ", sp("b", "PONTOS FRACOS"), " ", sp("d", "· todas as sessões")), BLANK];
+  const lines = [BLANK, ln("  ", sp("b", "PONTOS FRACOS"), " ", sp("d", "· contas que ainda não são automáticas")), BLANK];
   if (!wk.rows.length) {
     lines.push(ln("  Nenhum ponto fraco por enquanto. Treine mais algumas sessões para aparecer aqui."));
     return show(lines.concat(backLines()), "tabuada fracos", { enter: "menu" }, { menu });
   }
-  lines.push(ln("  ", sp("d", "      Conta     Vistas  Erros  Tempo médio  Motivo")));
+  const color = { erra: "r", pensa: "y", hesita: "y" };
+  const review = (r) => r.due ? sp("c", "agora") : r.review_in === 0 ? "hoje" : r.review_in === 1 ? "amanhã" : `em ${r.review_in} dias`;
+  lines.push(ln("  ", sp("d", "      Conta     Vistas  Erros  Tempo típico  Motivo   Revisão")));
   wk.rows.forEach((r, i) => {
-    const demora = r.reasons.includes("demora");
+    const reason = r.reasons[0], c = color[reason];
     lines.push(ln("   ", lpad(i + 1, 2), "   ", esc(rpad(fact(r.a, r.b), 9)), " ", lpad(r.seen, 6), "  ",
       r.errors ? sp("r", lpad(r.errors, 5)) : lpad(r.errors, 5), "  ",
-      demora ? sp("y", secs(r.mean, 11)) : secs(r.mean, 11), "    ",
-      r.reasons.map((x) => sp(x === "erra" ? "r" : "y", x)).join(" e ")));
+      reason !== "erra" ? sp(c, secs(r.ms, 12)) : secs(r.ms, 12), "   ",
+      sp(c, rpad(reason, 6)), "   ", review(r)));
   });
-  lines.push(BLANK, ln("  ", sp("d", `"demora" = tempo médio acima de 2${T} a sua mediana geral (${secs(wk.median)})`)));
+  lines.push(BLANK,
+    ln("  ", sp("d", `erra = errou   pensa = acertou em mais de ${secs(wk.slow_ms)}   hesita = de ${secs(wk.fast_ms).replace(" s", "")} a ${secs(wk.slow_ms)}`)),
+    ln("  ", sp("d", `Revisão: repetição espaçada. Acertar em até ${secs(wk.fast_ms)} adia a próxima revisão;`)),
+    ln("  ", sp("d", "errar, pensar ou hesitar traz a conta de volta antes.")));
   const cfg = Object.assign({}, home.config, { foco: true });
-  show(lines.concat(backLines([ln("    ", btn("f", "Treinar focando nessas contas", "focus"))])),
+  show(lines.concat(backLines([ln("    ", btn("f", "Treinar as contas com revisão vencida", "focus"))])),
     "tabuada fracos", { enter: "menu", f: "focus" }, { menu, focus: () => startTraining(cfg) });
 }
 

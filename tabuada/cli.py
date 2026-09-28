@@ -115,7 +115,7 @@ def build_parser():
     _add_general(h, suppress=True)
 
     s = _parser(sub, "stats", help="mostra sua evolução e a grade 12×12")
-    s.add_argument("--tempo", action="store_true", help="colore a grade por tempo médio")
+    s.add_argument("--tempo", action="store_true", help="colore a grade por tempo médio (padrão: domínio, que junta acerto e tempo)")
     _add_general(s, suppress=True)
 
     f = _parser(sub, "fracos", help="mostra as contas com mais erros ou mais lentas")
@@ -208,7 +208,7 @@ def main(argv=None):
             return _history(args)
         if args.command == "stats":
             print("\n".join(render.stats_lines(report.stats(storage.load_history(),
-                                                           "tempo" if args.tempo else "acerto"))))
+                                                           "tempo" if args.tempo else "dominio"))))
             print()
             return 0
         if args.command == "fracos":

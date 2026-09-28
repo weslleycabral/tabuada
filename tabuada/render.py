@@ -91,13 +91,13 @@ def time_lines(rep):
         took = secs(a["ms"], 6)
         lines.append("    " + left + (paint(took, "y") if thr and a["ms"] > thr else took))
     lines += ["", "    %s %s" % (paint("Sabe, mas ainda devagar", "c"),
-                                  paint("(acertou em mais de %s = 2%s a mediana)" % (secs(thr), sym("times")), "d"))]
+                                  paint("(acertou em mais de %s)" % secs(thr), "d"))]
     if t["slow_ok"]:
         items = ["%s  %s" % (fact(a["a"], a["b"]), paint(secs(a["ms"]), "y")) for a in t["slow_ok"][:6]]
         for i in range(0, len(items), 3):
             lines.append("    " + "     ".join(items[i:i + 3]))
     else:
-        lines.append("    " + paint("Nenhuma. Os acertos saíram no seu ritmo normal.", "d"))
+        lines.append("    " + paint("Nenhuma. Todos os acertos saíram em até %s." % secs(thr), "d"))
     if t["delta_mean"] is not None:
         lines += ["", "    Tempo médio %s %s" % (signed(t["delta_mean"] / 1000, "%.1f", True, " s"),
                                                   paint("em relação à sessão anterior", "d"))]
@@ -238,10 +238,10 @@ def stats_lines(st):
     cell = lambda lv: paint(cells[lv], "l%d" % lv)
     if st["mode"] == "tempo":
         lines.append("  " + paint("Tempo médio por conta", "c"))
-        legend = [("l1", "<3 s"), ("l2", "3-5 s"), ("l3", "5-8 s"), ("l4", ">8 s"), ("l0", "nunca vista")]
+        legend = [("l1", "até 2 s"), ("l2", "2-4 s"), ("l3", "4-8 s"), ("l4", "mais de 8 s"), ("l0", "nunca vista")]
     else:
-        lines.append("  " + paint("Acerto por conta", "c"))
-        legend = [("l1", ">=95%"), ("l2", "80-94%"), ("l3", "60-79%"), ("l4", "<60%"), ("l0", "nunca vista")]
+        lines.append("  %s %s" % (paint("Domínio por conta", "c"), paint("(como você respondeu nas últimas 3 vezes)", "d")))
+        legend = [("l1", "até 2 s"), ("l2", "2-4 s"), ("l3", "mais de 4 s"), ("l4", "erra"), ("l0", "nunca vista")]
     lines.append("  " + "  ".join("%s %s" % (cell(int(c[1])), t) for c, t in legend))
     lines.append("")
     lines.append(paint("     " + "".join(str(j).rjust(2) + " " for j in range(1, 13)), "d"))
@@ -266,23 +266,36 @@ def stats_lines(st):
     lines.append("  %s    %s treinando" % (paint("Tempo total", "c"), duration_text(st["total_ms"])))
     lines.append("")
     other = "tabuada stats" if st["mode"] == "tempo" else "tabuada stats --tempo"
-    what = "a grade por acerto" if st["mode"] == "tempo" else "a grade por tempo médio"
+    what = "a grade por domínio" if st["mode"] == "tempo" else "a grade por tempo médio"
     lines.append("  " + paint("%s  mostra %s" % (other, what), "d"))
     return lines
 
 
+def review_text(r):
+    if r["due"]:
+        return "agora"
+    return {0: "hoje", 1: "amanhã"}.get(r["review_in"], "em %d dias" % r["review_in"])
+
+
+_REASON_COLOR = {"erra": "r", "pensa": "y", "hesita": "y"}
+
+
 def weak_lines(wk):
-    lines = ["", "  %s %s" % (paint("PONTOS FRACOS", "b"), paint("%s todas as sessões" % sym("dot"), "d")), ""]
+    lines = ["", "  %s %s" % (paint("PONTOS FRACOS", "b"), paint("%s contas que ainda não são automáticas" % sym("dot"), "d")), ""]
     if not wk["rows"]:
         return lines + ["  Nenhum ponto fraco por enquanto. Treine mais algumas sessões para aparecer aqui."]
-    lines.append("  " + paint("      Conta     Vistas  Erros  Tempo médio  Motivo", "d"))
+    lines.append("  " + paint("      Conta     Vistas  Erros  Tempo típico  Motivo   Revisão", "d"))
     for i, r in enumerate(wk["rows"], start=1):
-        demora = "demora" in r["reasons"]
-        reason = " e ".join(paint(x, "r" if x == "erra" else "y") for x in r["reasons"])
-        lines.append("   %s   %s %s  %s  %s    %s" % (
+        reason = r["reasons"][0]
+        color = _REASON_COLOR[reason]
+        lines.append("   %s   %s %s  %s  %s   %s   %s" % (
             str(i).rjust(2), fact(r["a"], r["b"]).ljust(9), str(r["seen"]).rjust(6),
             paint(str(r["errors"]).rjust(5), "r") if r["errors"] else str(r["errors"]).rjust(5),
-            paint(secs(r["mean"], 11), "y") if demora else secs(r["mean"], 11), reason))
-    lines += ["", "  " + paint('"demora" = tempo médio acima de 2%s a sua mediana geral (%s)' % (sym("times"), secs(wk["median"])), "d"),
-              "", "  Treinar focando nessas contas:", "    " + paint("tabuada treinar --foco", "c")]
+            paint(secs(r["ms"], 12), color) if reason != "erra" else secs(r["ms"], 12),
+            paint(reason.ljust(6), color), review_text(r) if not r["due"] else paint("agora", "c")))
+    lines += ["", "  " + paint("erra = errou   pensa = acertou em mais de %s   hesita = de %s a %s" % (
+                  secs(wk["slow_ms"]), secs(wk["fast_ms"]).replace(" s", ""), secs(wk["slow_ms"])), "d"),
+              "  " + paint("Revisão: repetição espaçada. Acertar em até %s adia a próxima revisão;" % secs(wk["fast_ms"]), "d"),
+              "  " + paint("errar, pensar ou hesitar traz a conta de volta antes.", "d"),
+              "", "  Treinar as contas com revisão vencida:", "    " + paint("tabuada treinar --foco", "c")]
     return lines

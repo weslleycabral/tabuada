@@ -10,7 +10,10 @@ from pathlib import Path
 from unittest import mock
 
 from tabuada import render, report, session, storage, term
-from tabuada.drill import Config, Drill, answer_complete, format_tabelas, max_digits, parse_answer, parse_tabelas
+from datetime import datetime
+
+from tabuada.drill import (AUTOMATIC, HESITATED, THOUGHT, WRONG, Config, Drill, answer_complete, format_tabelas,
+                           grade, max_digits, memory, parse_answer, parse_tabelas, review_weights, typical_grade)
 
 
 def make_session(answers, tabelas=(6, 7, 8, 9), started="2026-09-27T14:03:00", sid=1):
@@ -111,6 +114,50 @@ class DrillTest(unittest.TestCase):
         self.assertTrue(d.done(0))
         self.assertTrue(Drill(Config(tempo=60, n=None)).done(61))
 
+    def test_grade_by_time(self):
+        self.assertEqual([grade(ans(2, 2, ms=ms)) for ms in (1500, 2000, 3000, 4000, 4100)],
+                         [AUTOMATIC, AUTOMATIC, HESITATED, HESITATED, THOUGHT])
+        self.assertEqual(grade(ans(2, 2, resp=5, ms=500)), WRONG)
+        self.assertEqual(grade(ans(2, 2, skipped=True, ms=500)), WRONG)
+        self.assertEqual(typical_grade([WRONG, AUTOMATIC, AUTOMATIC, AUTOMATIC]), AUTOMATIC)
+        self.assertEqual(typical_grade([AUTOMATIC, WRONG]), WRONG)  # na dúvida, a pior
+
+    def test_spaced_repetition_boxes(self):
+        day = lambda d: "2026-09-%02dT10:00:00" % d
+        fast = lambda: make_session([ans(7, 8, ms=1500)] * 3, started=day(d))
+        sessions = []
+        for d in (1, 2, 4, 8):  # automática a cada revisão vencida: sobe uma caixa por vez
+            sessions.append(fast())
+        self.assertEqual(memory(sessions)[(7, 8)]["box"], 4)
+        # rever antes da hora não sobe de caixa
+        self.assertEqual(memory([make_session([ans(7, 8, ms=1500)] * 10, started=day(1))])[(7, 8)]["box"], 1)
+        # hesitar limita a 2, pensar a 1, errar zera
+        for extra, box in ((ans(8, 7, ms=3000), 2), (ans(8, 7, ms=9000), 1), (ans(8, 7, resp=1), 0)):
+            s = sessions + [make_session([extra], started=day(29))]
+            self.assertEqual(memory(s)[(7, 8)]["box"], box)
+
+    def test_review_weights_follow_schedule(self):
+        s = [make_session([ans(2, 2, ms=1500)] * 1, started="2026-09-01T10:00:00"),
+             make_session([ans(2, 2, ms=1500), ans(3, 3, resp=1)], started="2026-09-02T10:00:00")]
+        pairs = [(2, 2), (3, 3), (4, 4)]
+        at = datetime(2026, 9, 2, 12, 0)
+        w = dict(zip(pairs, review_weights(pairs, s, at)))
+        self.assertLess(w[(2, 2)], 1)          # automática e em dia: quase não aparece
+        self.assertGreater(w[(3, 3)], w[(4, 4)])  # errada pesa mais que nunca vista
+        later = dict(zip(pairs, review_weights(pairs, s, datetime(2026, 9, 10))))
+        self.assertGreater(later[(2, 2)], 1)   # revisão vencida volta a aparecer
+
+    def test_in_session_repetition_by_grade(self):
+        d = Drill(Config(tabelas=[2, 3], min=2, max=3), rng=random.Random(1))
+        d.record(2, 2, 4, 1000)
+        d.record(3, 3, 9, 9000)
+        w = dict(zip(d.pairs, d.weights))
+        self.assertAlmostEqual(w[(2, 2)], 0.1)   # automática quase não se repete
+        self.assertEqual(w[(2, 3)], w[(3, 2)])  # 2×3 e 3×2 contam juntas
+        self.assertIn((3, 3), [p for _, p in d.retry])  # pensou: volta mais tarde
+        due = [at for at, p in d.retry if p == (3, 3)][0]
+        self.assertTrue(len(d.answers) + 5 <= due <= len(d.answers) + 8)
+
     def test_focus_prefers_weak_facts(self):
         history = [make_session([ans(7, 8, resp=54, ms=9000)] * 10 + [ans(2, 2)] * 10)]
         d = Drill(Config(tabelas=[2, 7], min=2, max=8, foco=True), history, random.Random(3))
@@ -162,7 +209,7 @@ class ReportTest(unittest.TestCase):
     def test_weak_fact_only_skipped_has_no_time(self):
         history = [make_session([ans(3, 4, skipped=True)] + [ans(2, 2)] * 5)]
         row = next(r for r in report.weak_facts(history)["rows"] if (r["a"], r["b"]) == (3, 4))
-        self.assertIsNone(row["mean"])
+        self.assertIsNone(row["ms"])
         term.T.color = False
         self.assertIn("  —  ", "\n".join(render.weak_lines(report.weak_facts(history))))
 

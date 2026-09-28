@@ -5,7 +5,7 @@ Sem entrada/saída: usado tanto pelo terminal quanto pelo modo web.
 
 import random
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 ALL = list(range(1, 13))
@@ -138,18 +138,82 @@ def fact_stats(sessions):
     return stats
 
 
-def weakness_weights(pairs, sessions):
-    """Peso de sorteio por conta: mais erros e mais lentidão = aparece mais."""
-    stats = fact_stats(sessions)
-    all_ms = [ms for st in stats.values() for ms in st["ms"]]
-    med = median(all_ms) or 1
-    known = {}
-    for key, st in stats.items():
-        err_rate = st["errors"] / st["seen"]
-        slow = max(0.0, (sum(st["ms"]) / len(st["ms"])) / med - 1) if st["ms"] else 0
-        known[key] = 1 + 6 * err_rate + 2 * min(slow, 3)
-    default = sum(known.values()) / len(known) if known else 1
-    return [known.get(fact_key(a, b), default) for a, b in pairs]
+# Um acerto em até 2 s é lembrança; acima disso você teve que pensar.
+FAST_MS = 2000
+SLOW_MS = 4000
+
+# Nota de cada resposta
+WRONG, THOUGHT, HESITATED, AUTOMATIC = 0, 1, 2, 3
+
+
+def grade(ans):
+    """0 errou ou pulou, 1 acertou pensando (>4 s), 2 hesitou (2–4 s), 3 automático (≤2 s)."""
+    if not ans["ok"]:
+        return WRONG
+    if ans["ms"] <= FAST_MS:
+        return AUTOMATIC
+    return HESITATED if ans["ms"] <= SLOW_MS else THOUGHT
+
+
+# Repetição espaçada (caixas de Leitner): quanto maior a caixa, mais tempo até a
+# próxima revisão. Só sobe de caixa quem responde automático depois do intervalo.
+REVIEW_AFTER = [timedelta(0), timedelta(minutes=10), timedelta(days=1),
+                timedelta(days=3), timedelta(days=7), timedelta(days=21)]
+TOP_BOX = len(REVIEW_AFTER) - 1
+
+
+def next_box(box, g, due):
+    if g == WRONG:
+        return 0
+    if g == THOUGHT:
+        return min(box, 1)
+    if g == HESITATED:
+        return min(max(box, 1), 2)
+    return min(box + 1, TOP_BOX) if due else max(box, 1)
+
+
+def memory(sessions):
+    """Por conta (a×b == b×a): caixa de revisão, última vez vista e as notas em ordem."""
+    mem = {}
+    for s in sessions:
+        when = datetime.fromisoformat(s["started"])
+        for ans in s.get("answers", []):
+            m = mem.setdefault(fact_key(ans["a"], ans["b"]), {"box": 0, "last": None, "grades": []})
+            due = m["last"] is None or when - m["last"] >= REVIEW_AFTER[m["box"]]
+            g = grade(ans)
+            m["box"] = next_box(m["box"], g, due)
+            m["grades"].append(g)
+            m["last"] = when
+    for m in mem.values():
+        m["due_at"] = m["last"] + REVIEW_AFTER[m["box"]]
+    return mem
+
+
+def typical_grade(grades):
+    """Como você costuma responder: mediana das 3 últimas notas (na dúvida, a pior)."""
+    last = sorted(grades[-3:])
+    return last[(len(last) - 1) // 2] if last else None
+
+
+# Peso de sorteio no --foco: vencida para revisão pesa pela caixa; em dia, quase não aparece.
+DUE_WEIGHT = [8, 6, 4, 3, 2, 2]
+NEW_WEIGHT = 4
+NOT_DUE_WEIGHT = 0.25
+
+
+def review_weights(pairs, sessions, at=None):
+    mem = memory(sessions)
+    at = at or datetime.now()
+    weights = []
+    for a, b in pairs:
+        m = mem.get(fact_key(a, b))
+        if m is None:
+            weights.append(NEW_WEIGHT)
+        elif at >= m["due_at"]:
+            weights.append(DUE_WEIGHT[m["box"]])
+        else:
+            weights.append(NOT_DUE_WEIGHT)
+    return weights
 
 
 class Drill:
@@ -162,7 +226,7 @@ class Drill:
                       for b in range(config.min, config.max + 1)]
         if not self.pairs:
             raise ValueError("Nenhuma conta para treinar com essa configuração.")
-        self.weights = (weakness_weights(self.pairs, list(history))
+        self.weights = (review_weights(self.pairs, list(history))
                         if config.foco else [1] * len(self.pairs))
         self.answers = []
         self.retry = []  # [(pergunta_em, (a, b))]
@@ -188,8 +252,16 @@ class Drill:
         ans = {"a": a, "b": b, "resp": None if skipped else resp,
                "ok": ok, "skipped": skipped, "ms": int(ms)}
         self.answers.append(ans)
-        if not ok:
+        g = grade(ans)
+        if g == WRONG:  # volta em 3 a 5 perguntas
             self.retry.append((len(self.answers) + self.rng.randint(2, 4), (a, b)))
+        elif g == THOUGHT:  # sabe, mas pensou: volta mais tarde, em 6 a 9
+            self.retry.append((len(self.answers) + self.rng.randint(5, 8), (a, b)))
+        else:  # automática quase não se repete na sessão; hesitante, menos
+            key = fact_key(a, b)
+            for i, p in enumerate(self.pairs):
+                if fact_key(*p) == key:
+                    self.weights[i] *= 0.1 if g == AUTOMATIC else 0.5
         return ans
 
     def done(self, elapsed_s):
@@ -198,9 +270,8 @@ class Drill:
         return len(self.answers) >= self.config.n
 
     def is_slow(self, ms):
-        """Resposta acima de 2× a mediana da sessão (a partir de 3 respostas)."""
-        prior = [x["ms"] for x in self.answers[:-1] if not x["skipped"]]
-        return len(prior) >= 3 and ms > 2 * median(prior)
+        """Acertou pensando: acima de SLOW_MS."""
+        return ms > SLOW_MS
 
     def to_session(self, started, duration_ms, interrupted):
         return {

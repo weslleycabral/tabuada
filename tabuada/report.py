@@ -6,7 +6,8 @@ pelo terminal (render.py) e pelo modo web.
 
 from datetime import date, datetime, timedelta
 
-from .drill import ALL, Config, fact_key, fact_stats, format_duration, median
+from .drill import (ALL, AUTOMATIC, FAST_MS, HESITATED, SLOW_MS, THOUGHT, WRONG, Config, fact_key,
+                    fact_stats, format_duration, median, memory, typical_grade)
 
 
 def _ans(a):
@@ -60,7 +61,7 @@ def time_group(session, before):
     med = median(ms)
     prev = session_numbers(before[-1]) if before else None
     mean = _mean(ms)
-    slow_ok = sorted((a for a in timed if a["ok"] and med and a["ms"] > 2 * med),
+    slow_ok = sorted((a for a in timed if a["ok"] and a["ms"] > SLOW_MS),
                      key=lambda a: -a["ms"])
     return {
         "mean": mean,
@@ -68,7 +69,7 @@ def time_group(session, before):
         "fastest": _ans(min(timed, key=lambda a: a["ms"])) if timed else None,
         "slowest": _ans(max(timed, key=lambda a: a["ms"])) if timed else None,
         "top": [_ans(a) for a in sorted(session["answers"], key=lambda a: -a["ms"])[:5]],
-        "slow_threshold": 2 * med,
+        "slow_threshold": SLOW_MS,
         "slow_ok": [_ans(a) for a in slow_ok],
         "delta_mean": (mean - prev["mean"]) if prev and prev["mean"] and ms else None,
     }
@@ -121,12 +122,10 @@ def compare_group(session, before):
 def recommendation(session, tables):
     cfg = Config.from_dict(session.get("config"))
     ans = session["answers"]
-    ms = [a["ms"] for a in ans if not a.get("skipped")]
-    med = median(ms)
     weak = []
     for a in sorted(ans, key=lambda a: (a["ok"], -a["ms"])):
         key = fact_key(a["a"], a["b"])
-        slow = med and a["ms"] > 2 * med
+        slow = a["ms"] > SLOW_MS
         if (not a["ok"] or slow) and key not in [fact_key(*w) for w in weak]:
             weak.append((a["a"], a["b"]))
     worst = next((r for r in tables if r["worst"]), None)
@@ -219,22 +218,26 @@ def day_streaks(sessions, today=None):
     return current, record
 
 
-def level(st, mode):
+# Nota típica -> nível de cor da célula (1 ótimo ... 4 ruim, 0 nunca vista)
+_GRADE_LEVEL = {AUTOMATIC: 1, HESITATED: 2, THOUGHT: 3, WRONG: 4}
+
+
+def level(st, mem, mode):
     """Nível de cor da célula: 0 nunca vista, 1 ótimo ... 4 ruim."""
     if not st or not st["seen"]:
         return 0
     if mode == "tempo":
         if not st["ms"]:
             return 4
-        avg = _mean(st["ms"]) / 1000
-        return 1 if avg < 3 else 2 if avg < 5 else 3 if avg < 8 else 4
-    pct = 100 * (st["seen"] - st["errors"]) / st["seen"]
-    return 1 if pct >= 95 else 2 if pct >= 80 else 3 if pct >= 60 else 4
+        avg = _mean(st["ms"])
+        return 1 if avg <= FAST_MS else 2 if avg <= SLOW_MS else 3 if avg <= 2 * SLOW_MS else 4
+    return _GRADE_LEVEL[typical_grade(mem["grades"])]
 
 
-def stats(sessions, mode="acerto", today=None):
+def stats(sessions, mode="dominio", today=None):
     fs = fact_stats(sessions)
-    grid = [[level(fs.get(fact_key(a, b)), mode) for b in ALL] for a in ALL]
+    mem = memory(sessions)
+    grid = [[level(fs.get(fact_key(a, b)), mem.get(fact_key(a, b)), mode) for b in ALL] for a in ALL]
     recent = sessions[-12:]
     per_table = {}
     for s in sessions:
@@ -261,25 +264,30 @@ def stats(sessions, mode="acerto", today=None):
     }
 
 
-def weak_facts(sessions, n=10):
+_REASON = {WRONG: "erra", THOUGHT: "pensa", HESITATED: "hesita"}
+
+
+def weak_facts(sessions, n=10, at=None):
+    """Contas que ainda não são automáticas, da pior para a melhor.
+
+    O motivo vem da nota típica das 3 últimas respostas: erra, pensa (>4 s)
+    ou hesita (2–4 s). A revisão segue a repetição espaçada de drill.memory."""
     fs = fact_stats(sessions)
-    med = median([ms for st in fs.values() for ms in st["ms"]])
+    mem = memory(sessions)
+    at = at or datetime.now()
     rows = []
-    for (a, b), st in fs.items():
-        mean = _mean(st["ms"]) if st["ms"] else None  # só pulos: sem tempo medido
-        err_rate = st["errors"] / st["seen"]
-        reasons = []
-        if st["errors"] and err_rate >= 0.15:
-            reasons.append("erra")
-        if med and st["seen"] >= 3 and median(st["ms"]) > 2 * med:
-            reasons.append("demora")
-        if not reasons:
+    for key, m in mem.items():
+        g = typical_grade(m["grades"])
+        if g == AUTOMATIC:
             continue
-        score = 3 * err_rate + (mean / med if med and mean else 0) * (0.5 if "demora" in reasons else 0.1)
-        rows.append({"a": a, "b": b, "seen": st["seen"], "errors": st["errors"],
-                     "mean": mean, "reasons": reasons, "score": score})
-    rows.sort(key=lambda r: -r["score"])
-    return {"median": med, "rows": rows[:n]}
+        st = fs[key]
+        recent_ms = st["ms"][-3:]
+        rows.append({"a": key[0], "b": key[1], "seen": st["seen"], "errors": st["errors"],
+                     "ms": median(recent_ms) if recent_ms else None,
+                     "grade": g, "reasons": [_REASON[g]], "box": m["box"],
+                     "due": m["due_at"] <= at, "review_in": max(0, (m["due_at"].date() - at.date()).days)})
+    rows.sort(key=lambda r: (r["grade"], -(r["ms"] or 0)))
+    return {"fast_ms": FAST_MS, "slow_ms": SLOW_MS, "rows": rows[:n]}
 
 
 def duration_text(ms):
