@@ -8,6 +8,7 @@ CLI em Python para treinar tabuada até 12×12, com relatório por sessão, hist
 - **Tudo tem dois caminhos:** menu interativo (`tabuada` sem argumentos) e flags. Funcionalidade nova entra nos dois, e o menu/assistente mostra o comando equivalente para ensinar as flags.
 - **Texto da interface em português do Brasil**, números com vírgula decimal (`5,8 s`).
 - **Resposta sem Enter:** na sessão, a resposta vai sozinha quando é a certa ou já tem o máximo de dígitos da conta (`drill.answer_complete`: dígitos de a + dígitos de b); Enter manda respostas mais curtas. `q`, `p` e `a` agem na hora. No terminal isso usa leitura tecla a tecla (`term.keys`/`read_key`: termios ou msvcrt); sem TTY, cai no `input()` com Enter.
+- **Tempo pesa tanto quanto acerto:** acerto até 2 s é automático, 2–4 s hesitou, acima de 4 s pensou (`drill.FAST_MS`/`SLOW_MS`, absolutos, não relativos à mediana). Grade do `stats`, `fracos`, feedback "mas demorou", repescagem e `--foco` usam essa mesma nota. O que repetir segue repetição espaçada; não voltar a pesar só erro/acerto.
 - **O tempo de cada resposta é sempre gravado**, em qualquer modo e sem limite. O tempo gasto apertando `a` (mostrar/ocultar atalhos) não conta.
 - **Relatório progressivo:** ao fim da sessão aparece só o resumo e a recomendação; os grupos (`t` tempo, `e` erros, `d` por tabela, `c` comparação, `x` tudo) abrem por tecla. Não voltar a despejar tudo de uma vez.
 - **A UI do mockup é a referência visual** (paleta em `term.PALETTE` e `web/app.css`). No terminal a fonte é a do usuário; o modo web traz a fonte JetBrains Mono e ícones SVG no pacote, sem requisições externas.
@@ -20,7 +21,7 @@ Lógica separada de entrada/saída, para o terminal e a web usarem as mesmas reg
 
 | Arquivo | Papel |
 |---|---|
-| `tabuada/drill.py` | Regras sem I/O: `Config`, `parse_tabelas`, sorteio (`Drill`), reforço de erros (volta em 3–5 perguntas), pesos do `--foco`, `parse_answer` |
+| `tabuada/drill.py` | Regras sem I/O: `Config`, `parse_tabelas`, sorteio (`Drill`), nota por resposta (`grade`: errou / >4 s / 2–4 s / ≤2 s), repescagem na sessão pela nota, repetição espaçada entre sessões (`memory`: caixas de Leitner, `review_weights` do `--foco`), `parse_answer` |
 | `tabuada/report.py` | Cálculos puros que devolvem dicts serializáveis: relatório da sessão (`build`), histórico, `stats`, `weak_facts`, `day_streaks` |
 | `tabuada/render.py` | Transforma esses dicts em linhas de terminal |
 | `tabuada/term.py` | Cores ANSI (truecolor ou 16 cores), ativação de VT no Windows via `ctypes`, fallback ASCII (`_AsciiWriter`) |

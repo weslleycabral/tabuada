@@ -5,8 +5,8 @@ Treino de tabuada até 12×12 no terminal, com relatório de cada sessão e hist
 ![Menu inicial do tabuada no terminal](docs/img/menu.png)
 
 - **Mede o tempo de cada resposta**, para mostrar as contas que você acerta mas ainda demora.
-- **Contas erradas voltam** 3 a 5 perguntas depois.
-- **`--foco`** faz as contas que você mais erra ou demora aparecerem mais.
+- **Acertar rápido vale mais que acertar pensando:** até 2 s é automático, de 2 a 4 s você hesitou, acima de 4 s teve que pensar.
+- **Repetição espaçada:** conta errada volta 3 a 5 perguntas depois, conta que você pensou para acertar volta mais tarde, e a automática quase não se repete. Com **`--foco`**, cada conta volta no dia em que está na hora de revisar.
 - **Dois jeitos de usar:** um menu que guia passo a passo, para quem nunca usou terminal, e comandos diretos para quem já sabe o que quer.
 - Funciona em **macOS, Linux e Windows**. Precisa só do Python 3.8 ou mais novo, sem nenhuma outra dependência.
 
@@ -21,6 +21,7 @@ Treino de tabuada até 12×12 no terminal, com relatório de cada sessão e hist
 - [Durante a sessão](#durante-a-sessão)
 - [Relatório](#relatório)
 - [Histórico, estatísticas e pontos fracos](#histórico-estatísticas-e-pontos-fracos)
+- [Como o tabuada decide o que repetir](#como-o-tabuada-decide-o-que-repetir)
 - [Comandos](#comandos)
 - [No navegador](#no-navegador)
 - [Aparência no terminal](#aparência-no-terminal)
@@ -150,7 +151,7 @@ A opção **1** abre um assistente com quatro perguntas:
 - **Quais tabelas?** `todas`, uma lista (`6,7,8`) ou uma faixa (`2-9`).
 - **Como treinar?** Um número fixo de perguntas ou contra-relógio (responder o máximo que der num tempo).
 - **Quantas perguntas** (ou quantos segundos).
-- **Focar nos pontos fracos?** Com `s`, as contas que você mais erra ou demora aparecem mais.
+- **Focar nos pontos fracos?** Com `s`, o sorteio segue a [repetição espaçada](#como-o-tabuada-decide-o-que-repetir): aparecem mais as contas com revisão vencida.
 
 Se você digitar algo inválido, ele explica o formato e pergunta de novo. No fim, mostra o **comando equivalente**, para você pular o menu da próxima vez:
 
@@ -174,7 +175,7 @@ Depois de cada resposta, a linha de cima mostra como foi e quanto tempo levou:
 | Acertou, mas demorou | Errou | Pulou |
 |---|---|---|
 | ![Certo, mas demorou](docs/img/feedback-lento.png) | ![Errou](docs/img/feedback-erro.png) | ![Pulou](docs/img/feedback-pulo.png) |
-| Tempo em amarelo quando passa de 2× a sua mediana na sessão. | Mostra a conta certa. Ela volta daqui a 3 a 5 perguntas. | Mostra a resposta. A conta também volta. |
+| Tempo em amarelo acima de 4 s. A conta volta mais tarde na sessão (6 a 9 perguntas depois). | Mostra a conta certa. Ela volta daqui a 3 a 5 perguntas. | Mostra a resposta. A conta também volta. |
 
 ### 4. Veja o relatório
 
@@ -259,19 +260,44 @@ Mostra as 10 últimas; `tabuada historico --todas` lista todas.
 
 ### Estatísticas — menu 4 ou `tabuada stats`
 
-A grade 12×12 mostra de relance onde estão os buracos: cada quadrado é uma conta, colorido pelo seu acerto em todas as sessões. `7 × 8` e `8 × 7` contam como a mesma conta, por isso a grade é simétrica. Embaixo, a evolução do acerto e do tempo nas últimas sessões, a melhor e a pior tabela e há quantos dias você treina seguido.
+A grade 12×12 mostra de relance onde estão os buracos: cada quadrado é uma conta, colorido pelo **domínio**, que junta acerto e tempo: como você costuma responder nas últimas 3 vezes (até 2 s, 2 a 4 s, mais de 4 s ou errando). `7 × 8` e `8 × 7` contam como a mesma conta, por isso a grade é simétrica. Embaixo, a evolução do acerto e do tempo nas últimas sessões, a melhor e a pior tabela e há quantos dias você treina seguido.
 
 ![Estatísticas](docs/img/stats.png)
 
-`tabuada stats --tempo` colore a grade pelo tempo médio em vez do acerto.
+`tabuada stats --tempo` colore a grade só pelo tempo médio.
 
 ### Pontos fracos — menu 5 ou `tabuada fracos`
 
-As contas que mais atrapalham, somando todas as sessões. A coluna *Motivo* diz se o problema é **errar**, **demorar** ou os dois. Termina com o comando que treina essas contas.
+As contas que ainda não são automáticas, da pior para a melhor. O *Motivo* diz se você **erra**, **pensa** (acerta em mais de 4 s) ou **hesita** (2 a 4 s), e a *Revisão* diz quando a repetição espaçada vai trazer a conta de volta. Termina com o comando que treina as contas com revisão vencida.
 
 ![Pontos fracos](docs/img/fracos.png)
 
 `tabuada fracos -n 20` mostra mais contas.
+
+## Como o tabuada decide o que repetir
+
+Cada resposta recebe uma nota pelo acerto **e** pelo tempo:
+
+| Nota | Quando |
+|---|---|
+| automática | acertou em até 2 s: você lembrou, não calculou |
+| hesitou | acertou entre 2 e 4 s |
+| pensou | acertou em mais de 4 s: sabe, mas ainda calcula |
+| errou | errou ou pulou |
+
+**Na sessão**, a nota decide a repescagem: a errada volta 3 a 5 perguntas depois, a pensada volta 6 a 9 perguntas depois, a hesitada aparece menos e a automática quase não se repete.
+
+**Entre sessões**, com `--foco`, vale a [repetição espaçada](https://pt.wikipedia.org/wiki/Repeti%C3%A7%C3%A3o_espa%C3%A7ada) (caixas de Leitner). Cada conta está numa caixa, e cada caixa tem um intervalo até a próxima revisão:
+
+| Caixa | 0 | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|---|
+| Revisar depois de | na hora | 10 min | 1 dia | 3 dias | 7 dias | 21 dias |
+
+- Automática **com a revisão vencida**: sobe uma caixa. Rever antes da hora não sobe, então repetir a mesma conta muitas vezes no mesmo dia não adianta.
+- Hesitou: fica no máximo na caixa 2. Pensou: volta para a caixa 1. Errou: volta para a 0.
+- No sorteio, contas com revisão vencida aparecem bem mais (quanto mais baixa a caixa, mais), contas nunca vistas entram no meio, e contas em dia quase não aparecem.
+
+Tudo é calculado a partir do histórico, então vale também para as sessões que você já fez.
 
 ## Comandos
 
@@ -281,7 +307,7 @@ Tudo o que o menu faz também tem um comando direto:
 tabuada                                 # menu interativo
 tabuada treinar                         # repete a última configuração
 tabuada treinar -n 30 --tabelas 7,8     # 30 perguntas das tabelas 7 e 8
-tabuada treinar --tabelas 2-9 --foco    # mais perguntas nos seus pontos fracos
+tabuada treinar --tabelas 2-9 --foco    # revisão espaçada: contas na hora de revisar
 tabuada treinar --tempo 120             # contra-relógio de 2 minutos
 tabuada treinar --min 6 --max 9         # segundo fator só de 6 a 9
 tabuada treinar --sem-historico         # treino que não fica salvo
